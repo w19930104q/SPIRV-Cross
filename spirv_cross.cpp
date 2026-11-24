@@ -1252,6 +1252,65 @@ ShaderResources Compiler::get_shader_resources(const unordered_set<VariableID> *
 	return res;
 }
 
+SmallVector<Compiler::ResourceLocation> Compiler::get_resource_locations() const
+{
+	SmallVector<ResourceLocation> locations;
+
+	ir.for_each_typed_id<SPIRVariable>([&](uint32_t, const SPIRVariable &var) {
+		// Only global variables can be descriptor resources.
+		if (var.storage == StorageClassFunction)
+			return;
+
+		// A resource only has a descriptor location if both decorations are present.
+		if (!has_decoration(var.self, DecorationDescriptorSet) || !has_decoration(var.self, DecorationBinding))
+			return;
+
+		ResourceLocation loc;
+		loc.name = get_name(var.self);
+		loc.set = get_decoration(var.self, DecorationDescriptorSet);
+		loc.binding = get_decoration(var.self, DecorationBinding);
+		locations.push_back(std::move(loc));
+	});
+
+	// Canonical ordering: set ascending, then binding ascending.
+	std::sort(locations.begin(), locations.end(), [](const ResourceLocation &a, const ResourceLocation &b) {
+		if (a.set != b.set)
+			return a.set < b.set;
+		return a.binding < b.binding;
+	});
+
+	// Two resources may not occupy the same location. Report the same failure
+	// from every backend, before any source is emitted.
+	for (size_t i = 1; i < locations.size(); i++)
+	{
+		if (locations[i].set == locations[i - 1].set && locations[i].binding == locations[i - 1].binding)
+		{
+			SPIRV_CROSS_THROW(join("Resource location conflict at set ", locations[i].set, ", binding ",
+			                       locations[i].binding, ": \"", locations[i - 1].name, "\" and \"",
+			                       locations[i].name, "\"."));
+		}
+	}
+
+	return locations;
+}
+
+std::string Compiler::get_resource_manifest() const
+{
+	auto locations = get_resource_locations();
+
+	std::string manifest;
+	for (auto &loc : locations)
+	{
+		manifest += loc.name;
+		manifest += '=';
+		manifest += std::to_string(loc.set);
+		manifest += ':';
+		manifest += std::to_string(loc.binding);
+		manifest += '\n';
+	}
+	return manifest;
+}
+
 bool Compiler::type_is_top_level_block(const SPIRType &type) const
 {
 	if (type.basetype != SPIRType::Struct)

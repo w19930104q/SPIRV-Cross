@@ -339,6 +339,27 @@ public:
 	// accessed.
 	ShaderResources get_shader_resources(const std::unordered_set<VariableID> &active_variables) const;
 
+	// A backend-independent descriptor location for a single shader resource.
+	struct ResourceLocation
+	{
+		std::string name;
+		uint32_t set = 0;
+		uint32_t binding = 0;
+	};
+
+	// Returns the descriptor locations of all resources which carry both
+	// DescriptorSet and Binding decorations, sorted by (set, binding) in ascending order.
+	// The result only depends on the SPIR-V module itself, so every backend
+	// reports the same locations for the same module.
+	// Throws CompilerError if two resources share the same (set, binding) location.
+	SmallVector<ResourceLocation> get_resource_locations() const;
+
+	// Returns a canonical text manifest of the resource locations,
+	// one "name=set:binding" entry per line, sorted by (set, binding) ascending.
+	// Identical across all backends for the same SPIR-V module.
+	// Throws CompilerError on conflicting locations, before any source is emitted.
+	std::string get_resource_manifest() const;
+
 	// Remapped variables are considered built-in variables and a backend will
 	// not emit a declaration for this variable.
 	// This is mostly useful for making use of builtins which are dependent on extensions.

@@ -624,6 +624,7 @@ struct CLIArguments
 {
 	const char *input = nullptr;
 	const char *output = nullptr;
+	const char *resource_manifest = nullptr;
 	const char *cpp_interface_name = nullptr;
 	uint32_t version = 0;
 	uint32_t shader_model = 0;
@@ -1064,6 +1065,9 @@ static void print_help_all()
 	                "\t[SPIR-V file] (- is stdin)\n"
 	                "\t[--output <output path>]: If not provided, prints output to stdout.\n"
 	                "\t[--dump-resources]:\n\t\tPrints a basic reflection of the SPIR-V module along with other output.\n"
+	                "\t[--resource-manifest <manifest path> (- is stdout)]:\n"
+	                "\t\tWrites a backend-independent resource location manifest (name=set:binding, sorted by set and binding)\n"
+	                "\t\tbefore any source is emitted. Fails with the same error for every backend on location conflicts.\n"
 	                "\t[--help]:\n\t\tPrints a summary help message.\n"
 	);
 	// clang-format on
@@ -1710,6 +1714,7 @@ static int main_inner(int argc, char *argv[])
 		args.set_version = true;
 	});
 	cbs.add("--dump-resources", [&args](CLIParser &) { args.dump_resources = true; });
+	cbs.add("--resource-manifest", [&args](CLIParser &parser) { args.resource_manifest = parser.next_string(); });
 	cbs.add("--force-temporary", [&args](CLIParser &) { args.force_temporary = true; });
 	cbs.add("--flatten-ubo", [&args](CLIParser &) { args.flatten_ubo = true; });
 	cbs.add("--fixup-clipspace", [&args](CLIParser &) { args.fixup = true; });
@@ -2097,6 +2102,22 @@ static int main_inner(int argc, char *argv[])
 	}
 
 	string compiled_output;
+
+	// Export the backend-independent resource location manifest before any source
+	// is compiled or written out. The manifest is built by the shared Compiler base
+	// class, so every backend reports identical locations for the same module, and a
+	// location conflict fails here with the same error (and exit code) for every backend.
+	if (args.resource_manifest)
+	{
+		Parser spirv_parser(spirv_file);
+		spirv_parser.parse();
+		Compiler compiler(std::move(spirv_parser.get_parsed_ir()));
+		auto manifest = compiler.get_resource_manifest();
+		if (strcmp(args.resource_manifest, "-") == 0)
+			printf("%s", manifest.c_str());
+		else if (!write_string_to_file(args.resource_manifest, manifest.c_str()))
+			return EXIT_FAILURE;
+	}
 
 	if (args.iterations == 1)
 		compiled_output = compile_iteration(args, std::move(spirv_file));
