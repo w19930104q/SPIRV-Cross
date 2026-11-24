@@ -269,10 +269,41 @@ void CompilerReflection::set_format(const std::string &format)
 	}
 }
 
+void CompilerReflection::validate_block_layouts()
+{
+	auto loop_lock = ir.create_loop_hard_lock();
+
+	ir.for_each_typed_id<SPIRVariable>([&](uint32_t, SPIRVariable &var) {
+		auto &type = get<SPIRType>(var.basetype);
+		if (var.storage == StorageClassFunction || !type.pointer || is_hidden_variable(var))
+			return;
+
+		bool is_block_storage = type.storage == StorageClassStorageBuffer || type.storage == StorageClassUniform ||
+		                        type.storage == StorageClassShaderRecordBufferKHR ||
+		                        type.storage == StorageClassWorkgroup;
+		bool has_block_flags = ir.meta[type.self].decoration.decoration_flags.get(DecorationBlock) ||
+		                       ir.meta[type.self].decoration.decoration_flags.get(DecorationBufferBlock);
+
+		if (is_block_storage && has_block_flags)
+		{
+			// Match the packing standard selection used when emitting the block as GLSL,
+			// so that reflection cannot succeed for a layout the source backend cannot express.
+			// UBOs cannot use plain std430, while SSBOs/shared blocks can.
+			bool is_ubo = type.storage == StorageClassUniform;
+			(void)buffer_to_packing_standard(type, !is_ubo, true);
+		}
+		else if (type.storage == StorageClassPushConstant)
+		{
+			(void)buffer_to_packing_standard(type, true, true);
+		}
+	});
+}
+
 string CompilerReflection::compile()
 {
 	json_stream = std::make_shared<simple_json::Stream>();
 	json_stream->set_current_locale_radix_character(current_locale_radix_character);
+	validate_block_layouts();
 	json_stream->begin_json_object();
 	reorder_type_alias();
 	emit_entry_points();

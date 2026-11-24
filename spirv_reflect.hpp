@@ -68,6 +68,11 @@ public:
 	std::string compile() override;
 
 private:
+	// Make sure that any block we emit reflection data for can also be expressed as a
+	// buffer block by the GLSL backend. If it cannot, the reflected layout would disagree
+	// with the generated source, so fail before any JSON is emitted.
+	void validate_block_layouts();
+
 	static std::string execution_model_to_str(ExecutionModel model);
 
 	void emit_entry_points();

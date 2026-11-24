@@ -1,0 +1,57 @@
+{
+    "entryPoints" : [
+        {
+            "name" : "main",
+            "mode" : "vert"
+        }
+    ],
+    "types" : {
+        "_17" : {
+            "name" : "Block",
+            "members" : [
+                {
+                    "name" : "a",
+                    "type" : "mat4",
+                    "array" : [
+                        1
+                    ],
+                    "array_size_is_literal" : [
+                        true
+                    ],
+                    "offset" : 0,
+                    "array_stride" : 64,
+                    "matrix_stride" : 16,
+                    "row_major" : true
+                },
+                {
+                    "name" : "b",
+                    "type" : "vec4",
+                    "offset" : 96
+                }
+            ]
+        }
+    },
+    "inputs" : [
+        {
+            "type" : "vec4",
+            "name" : "in_pos",
+            "location" : 0
+        }
+    ],
+    "outputs" : [
+        {
+            "type" : "vec4",
+            "name" : "out_pos",
+            "location" : 0
+        }
+    ],
+    "ubos" : [
+        {
+            "type" : "_17",
+            "name" : "Block",
+            "block_size" : 112,
+            "set" : 0,
+            "binding" : 0
+        }
+    ]
+}
